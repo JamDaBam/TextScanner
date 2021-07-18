@@ -45,9 +45,21 @@ public class TextRecognition {
 
         try {
             BufferedImage read = ImageIO.read(aInputStream);
-            result = ivTesseract.doOCR(read);
+            result = read(read);
+        } catch (IOException e) {
+            e.printStackTrace();
+            result = "Es ist ein Fehler aufgetreten:\n" + e.getMessage();
+        }
 
-        } catch (IOException | TesseractException e) {
+        return result;
+    }
+
+    public String read(BufferedImage aBufferedImage) {
+        String result;
+
+        try {
+            result = ivTesseract.doOCR(aBufferedImage);
+        } catch (TesseractException e) {
             e.printStackTrace();
             result = "Es ist ein Fehler aufgetreten:\n" + e.getMessage();
         }

@@ -20,5 +20,11 @@
             <artifactId>tess4j</artifactId>
             <version>4.5.4</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.ghost4j/ghost4j -->
+        <dependency>
+            <groupId>org.ghost4j</groupId>
+            <artifactId>ghost4j</artifactId>
+            <version>1.0.1</version>
+        </dependency>
     </dependencies>
 </project>
