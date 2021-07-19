@@ -1,115 +1,101 @@
-import net.sourceforge.tess4j.ITessAPI;
-import net.sourceforge.tess4j.Tesseract;
-import net.sourceforge.tess4j.TesseractException;
-import net.sourceforge.tess4j.util.LoadLibs;
-import org.ghost4j.document.DocumentException;
-import org.ghost4j.document.PDFDocument;
-import org.ghost4j.renderer.RendererException;
-import org.ghost4j.renderer.SimpleRenderer;
-
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.awt.image.BufferedImage;
+import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
+import java.util.*;
 
 public class TextRecognition {
-    private static TextRecognition cvInstance;
+    public static Map<String, String[]> openPdf() {
+        Map<String, String[]> resultMap = null;
 
-    private Tesseract ivTesseract;
 
-    private TextRecognition() {
-        ivTesseract = initTesseract();
-    }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Input");
+        FileNameExtensionFilter pdfFileFilter = new FileNameExtensionFilter("PDF", "pdf");
+        chooser.setFileFilter(pdfFileFilter);
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        int i = chooser.showOpenDialog(null);
 
-    public static TextRecognition getInstance() {
-        if (cvInstance == null) {
-            cvInstance = new TextRecognition();
+        if (JFileChooser.APPROVE_OPTION == i) {
+            resultMap = new TreeMap<>();
+
+            File file = chooser.getSelectedFile();
+            System.out.println(file.getAbsolutePath());
+            String[] result = TextRecognitionProcess.getInstance()
+                                                    .read(file);
+
+            resultMap.put(file.getName(), result);
         }
 
-        return cvInstance;
+        return resultMap == null ? Collections.emptyMap() : resultMap;
     }
 
-    private Tesseract initTesseract() {
-        Tesseract tesseract = new Tesseract();
-        //Ressourcen laden und in Tempdirectory extrahieren
-        //Trainingsdaten von https://github.com/tesseract-ocr/tessdata laden
-        File tessDataFolder = LoadLibs.extractTessResources("tessdata");
-        tesseract.setDatapath(tessDataFolder.getAbsolutePath());
-        //Fehler deu wird nicht geladen. Diese wurde händisch heruntergeladen
-        //Als Workaround könnte man ein Download über die Trainignsdaten manuell machen und in das Tempverzeichnis legen, da dieses bekannt ist.
-        tesseract.setLanguage("deu");
-        tesseract.setOcrEngineMode(ITessAPI.TessOcrEngineMode.OEM_TESSERACT_LSTM_COMBINED);
+    public static Map<String, String[]> openPdfBatchFolder() {
+        Map<String, String[]> resultMap = null;
 
-        return tesseract;
-    }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Input");
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int i = chooser.showOpenDialog(null);
 
-    public String[] read(String aPdfFilePath) {
-        String[] result;
+        if (JFileChooser.APPROVE_OPTION == i) {
+            File dir = chooser.getSelectedFile();
+            System.out.println(dir.getAbsolutePath());
 
-        try {
-            PDFDocument pdf = new PDFDocument();
-            pdf.load(new File(aPdfFilePath));
+            File[] files = dir.listFiles((dir1, name) -> name.toLowerCase()
+                                                             .endsWith(".pdf"));
 
-            SimpleRenderer renderer = new SimpleRenderer();
-            renderer.setResolution(300);
-            List<Image> images = renderer.render(pdf);
+            resultMap = new TreeMap<>();
 
-            result = new String[images.size()];
+            if (files != null) {
+                for (File file : files) {
+                    String[] result = TextRecognitionProcess.getInstance()
+                                                            .read(file);
+                    resultMap.put(file.getName(), result);
+                }
 
-            int site = 1;
+                Set<Map.Entry<String, String[]>> entries = resultMap.entrySet();
+                for (Map.Entry<String, String[]> entry : entries) {
+                    String filename = entry.getKey();
+                    String[] result = entry.getValue();
 
-            for (int i = 0; i < images.size(); i++) {
-                Image image = images.get(i);
-                BufferedImage bi = imageToBufferedImage(image);
-                String pdftext = read(bi);
-                bi.flush();
-                result[i] = pdftext;
-                System.out.println("Seite " + site++ + ":\n" + pdftext + "\n");
+                    System.out.println(filename + "\n" + Arrays.deepToString(result));
+                }
             }
-
-        } catch (IOException | DocumentException | RendererException e) {
-            e.printStackTrace();
-            result = new String[]{"Es ist ein Fehler aufgetreten:\n" + e.getMessage()};
         }
 
-        return result;
+        return resultMap == null ? Collections.emptyMap() : resultMap;
     }
 
-    public String read(InputStream aInputStream) {
-        String result;
+    public static void writeTextFile(Map<String, String[]> aMap) throws IOException {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Output");
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int i = chooser.showOpenDialog(null);
 
-        try {
-            BufferedImage read = ImageIO.read(aInputStream);
-            result = read(read);
-        } catch (IOException e) {
-            e.printStackTrace();
-            result = "Es ist ein Fehler aufgetreten:\n" + e.getMessage();
+        if (JFileChooser.APPROVE_OPTION == i) {
+            File dir = chooser.getSelectedFile();
+            String absolutePath = dir.getAbsolutePath();
+            System.out.println(absolutePath);
+
+            for (Map.Entry<String, String[]> entry : aMap.entrySet()) {
+                String filename = entry.getKey();
+                String[] value = entry.getValue();
+
+                BufferedWriter outputWriter = new BufferedWriter(new FileWriter(absolutePath + "/" + filename + ".txt"));
+                for (String s : value) {
+                    outputWriter.write(s);
+                    outputWriter.newLine();
+                    outputWriter.newLine();
+                }
+                outputWriter.flush();
+                outputWriter.close();
+            }
         }
-
-        return result;
-    }
-
-    public String read(BufferedImage aBufferedImage) {
-        String result;
-
-        try {
-            result = ivTesseract.doOCR(aBufferedImage);
-        } catch (TesseractException e) {
-            e.printStackTrace();
-            result = "Es ist ein Fehler aufgetreten:\n" + e.getMessage();
-        }
-
-        return result;
-    }
-
-    private BufferedImage imageToBufferedImage(Image aImage) {
-        BufferedImage bi = new BufferedImage(aImage.getWidth(null), aImage.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = bi.createGraphics();
-        g2d.drawImage(aImage, 0, 0, null);
-        g2d.dispose();
-        return bi;
     }
 }
