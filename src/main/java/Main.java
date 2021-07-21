@@ -1,7 +1,7 @@
 public class Main {
     public static void main(String[] args) {
         TextRecognition.writeDocxFile(TextRecognition.openPdf());
-//        TextRecognition.writeTextFile(TextRecognition.openPdfBatchFolder());
+//        TextRecognition.writeDocxFile(TextRecognition.openPdfBatchFolder());
     }
 }
 

@@ -18,7 +18,7 @@ import java.util.List;
 public class TextRecognitionProcess {
     private static TextRecognitionProcess cvInstance;
 
-    private Tesseract ivTesseract;
+    private final Tesseract ivTesseract;
 
     private TextRecognitionProcess() {
         ivTesseract = initTesseract();
@@ -49,7 +49,7 @@ public class TextRecognitionProcess {
     public String[] read(File aFile) {
         String[] result;
 
-        String ext = getExtensionByStringHandling(aFile.getName());
+        String ext = TextRecognitionUtils.getExtensionByStringHandling(aFile.getName());
 
         if ("pdf".equalsIgnoreCase(ext)) {
             try {
@@ -66,7 +66,7 @@ public class TextRecognitionProcess {
 
                 for (int i = 0; i < images.size(); i++) {
                     Image image = images.get(i);
-                    BufferedImage bi = imageToBufferedImage(image);
+                    BufferedImage bi = TextRecognitionUtils.imageToBufferedImage(image);
                     String pdftext = read(bi);
                     bi.flush();
                     result[i] = pdftext;
@@ -122,25 +122,5 @@ public class TextRecognitionProcess {
         }
 
         return result;
-    }
-
-    private BufferedImage imageToBufferedImage(Image aImage) {
-        if (aImage == null) {
-            return null;
-        }
-
-        BufferedImage bi = new BufferedImage(aImage.getWidth(null), aImage.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = bi.createGraphics();
-        g2d.drawImage(aImage, 0, 0, null);
-        g2d.dispose();
-        return bi;
-    }
-
-    private String getExtensionByStringHandling(String aFileName) {
-        if (aFileName == null || !aFileName.contains(".")) {
-            return "";
-        }
-
-        return aFileName.substring(aFileName.lastIndexOf(".") + 1);
     }
 }
