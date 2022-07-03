@@ -1,18 +1,26 @@
+import org.apache.commons.lang3.tuple.Pair;
 import org.docx4j.openpackaging.exceptions.Docx4JException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class TextRecognition {
-    public static Map<String, String[]> openPdf() {
-        Map<String, String[]> resultMap = null;
+    private final Map<String, List<Image>> ivHighResImages = new TreeMap<>();
+    private final Map<String, List<Image>> ivLowResImages = new TreeMap<>();
 
+    private final Map<String, String[]> ivProcessed = new TreeMap<>();
+
+    public void loadPdf(boolean aThumbnails, int aLowDpi, int aHighDpi) {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Input");
         FileNameExtensionFilter pdfFileFilter = new FileNameExtensionFilter("PDF", "pdf");
@@ -22,22 +30,24 @@ public class TextRecognition {
         int i = chooser.showOpenDialog(null);
 
         if (JFileChooser.APPROVE_OPTION == i) {
-            resultMap = new TreeMap<>();
 
-            File file = chooser.getSelectedFile();
-            System.out.println(file.getAbsolutePath());
-            String[] result = TextRecognitionProcess.getInstance()
-                                                    .read(file);
-
-            resultMap.put(file.getName(), result);
+            try {
+                File file = chooser.getSelectedFile();
+                if (aThumbnails) {
+                    Pair<List<Image>, List<Image>> lowHigh = TextRecognitionUtils.pdfToHighAndLowResBufferedImages(file, aLowDpi, aHighDpi);
+                    ivLowResImages.put(file.getName(), lowHigh.getLeft());
+                    ivHighResImages.put(file.getName(), lowHigh.getRight());
+                } else {
+                    List<Image> highRes = TextRecognitionUtils.pdfToBufferedImagesCompressed(file, aHighDpi);
+                    ivHighResImages.put(file.getName(), highRes);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
-        return resultMap == null ? Collections.emptyMap() : resultMap;
     }
 
-    public static Map<String, String[]> openPdfBatchFolder() {
-        Map<String, String[]> resultMap = null;
-
+    public void loadPdfBatchFolder(boolean aThumbnails, int aLowDpi, int aHighDpi) throws IOException {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Input");
         chooser.setAcceptAllFileFilterUsed(false);
@@ -51,29 +61,39 @@ public class TextRecognition {
             File[] files = dir.listFiles((dir1, name) -> name.toLowerCase()
                                                              .endsWith(".pdf"));
 
-            resultMap = new TreeMap<>();
-
             if (files != null) {
                 for (File file : files) {
-                    String[] result = TextRecognitionProcess.getInstance()
-                                                            .read(file);
-                    resultMap.put(file.getName(), result);
-                }
-
-                Set<Map.Entry<String, String[]>> entries = resultMap.entrySet();
-                for (Map.Entry<String, String[]> entry : entries) {
-                    String filename = entry.getKey();
-                    String[] result = entry.getValue();
-
-                    System.out.println(filename + "\n" + Arrays.deepToString(result));
+                    if (aThumbnails) {
+                        Pair<List<Image>, List<Image>> lowHigh = TextRecognitionUtils.pdfToHighAndLowResBufferedImages(file, aLowDpi, aHighDpi);
+                        ivLowResImages.put(file.getName(), lowHigh.getLeft());
+                        ivHighResImages.put(file.getName(), lowHigh.getRight());
+                    } else {
+                        List<Image> highRes = TextRecognitionUtils.pdfToBufferedImages(file);
+                        ivHighResImages.put(file.getName(), highRes);
+                    }
                 }
             }
         }
-
-        return resultMap == null ? Collections.emptyMap() : resultMap;
     }
 
-    public static void write(Map<String, String[]> aMap, WriteFunction aWriteFunction) {
+    public void processLoadedFiles() {
+        for (Map.Entry<String, List<Image>> entry : ivHighResImages.entrySet()) {
+            String filename = entry.getKey();
+            List<Image> value = entry.getValue();
+
+            String[] result = new String[value.size()];
+
+            for (int i = 0; i < value.size(); i++) {
+                Image image = value.get(i);
+                result[i] = TextRecognitionProcess.getInstance()
+                                                  .read((BufferedImage) image);
+            }
+
+            ivProcessed.put(filename, result);
+        }
+    }
+
+    public void write(Map<String, String[]> aMap, WriteFunction aWriteFunction) {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Output");
         chooser.setAcceptAllFileFilterUsed(false);
@@ -92,7 +112,11 @@ public class TextRecognition {
         }
     }
 
-    public static void writeTextFile(Map<String, String[]> aMap) {
+    public void writeProcessedToTextFile() {
+        writeTextFile(ivProcessed);
+    }
+
+    public void writeTextFile(Map<String, String[]> aMap) {
         write(aMap, (aOutputPath, aFilename, aContent) -> {
             try {
                 BufferedWriter outputWriter = new BufferedWriter(new FileWriter(aOutputPath + "/" + aFilename + ".txt"));
@@ -109,7 +133,11 @@ public class TextRecognition {
         });
     }
 
-    public static void writeDocxFile(Map<String, String[]> aMap) {
+    public void writeProcessedToDocxFile() {
+        writeDocxFile(ivProcessed);
+    }
+
+    public void writeDocxFile(Map<String, String[]> aMap) {
         write(aMap, (aOutputPath, aFilename, aContent) -> {
             try {
                 WordprocessingMLPackage wordMLPackage = WordprocessingMLPackage.createPackage();
@@ -122,5 +150,9 @@ public class TextRecognition {
                 e.printStackTrace();
             }
         });
+    }
+
+    public Map<String, List<Image>> getLowResImages() {
+        return ivLowResImages;
     }
 }

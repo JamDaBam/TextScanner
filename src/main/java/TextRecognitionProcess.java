@@ -2,10 +2,6 @@ import net.sourceforge.tess4j.ITessAPI;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import net.sourceforge.tess4j.util.LoadLibs;
-import org.ghost4j.document.DocumentException;
-import org.ghost4j.document.PDFDocument;
-import org.ghost4j.renderer.RendererException;
-import org.ghost4j.renderer.SimpleRenderer;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -53,27 +49,19 @@ public class TextRecognitionProcess {
 
         if ("pdf".equalsIgnoreCase(ext)) {
             try {
-                PDFDocument pdf = new PDFDocument();
-                pdf.load(aFile);
-
-                SimpleRenderer renderer = new SimpleRenderer();
-                renderer.setResolution(300);
-                List<Image> images = renderer.render(pdf);
-
+                List<Image> images = TextRecognitionUtils.pdfToBufferedImages(aFile);
                 result = new String[images.size()];
 
                 int site = 1;
 
                 for (int i = 0; i < images.size(); i++) {
                     Image image = images.get(i);
-                    BufferedImage bi = TextRecognitionUtils.imageToBufferedImage(image);
-                    String pdftext = read(bi);
-                    bi.flush();
+                    String pdftext = read((BufferedImage) image);
                     result[i] = pdftext;
                     System.out.println("Seite " + site++ + ":\n" + pdftext + "\n");
                 }
 
-            } catch (IOException | DocumentException | RendererException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
                 result = new String[]{"Es ist ein Fehler aufgetreten:\n" + e.getMessage()};
             }
@@ -120,6 +108,8 @@ public class TextRecognitionProcess {
             e.printStackTrace();
             result = "Es ist ein Fehler aufgetreten:\n" + e.getMessage();
         }
+
+        System.out.println(result);
 
         return result;
     }
